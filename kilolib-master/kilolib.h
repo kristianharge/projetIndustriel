@@ -59,7 +59,7 @@ typedef void (*message_rx_t)(message_t *, distance_measurement_t *d);
 typedef message_t *(*message_tx_t)(void);
 typedef void (*message_tx_success_t)(void);
 /*ISIR*/
-enum direction {
+typedef enum direction {
 	NORTH,
 	NORTH_EAST,
 	SOUTH_EAST,
@@ -67,7 +67,7 @@ enum direction {
 	SOUTH_WEST,
 	NORTH_WEST,
 	NONE
-};
+} direction;
 
 
 /**
@@ -272,16 +272,6 @@ extern message_tx_success_t kilo_message_tx_success;
 #ifdef __cplusplus /* If this is a C++ compiler, use C linkage */
 extern "C" {
 #endif
-
-/** ISIR
- * @brief Estimate the direction of the recieved message.
- *
- * This function sets the direction of the recieved message
- * in a variable rx_direction. It can be used
- * to determine the others kilobots positions.
- *
- */
-void estimate_direction();
 
 /**
  * @brief Estimate distance in mm based on signal strength measurements.

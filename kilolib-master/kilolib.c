@@ -116,6 +116,9 @@ void kilo_init() {
         kilo_irhigh[i]=(eeprom_read_byte(EEPROM_IRHIGH + i*2) <<8) | eeprom_read_byte(EEPROM_IRHIGH + i*2+1);
     }
 #endif
+
+    /*ISIR*/
+    rx_direction = NONE;
     sei();
 }
 
@@ -340,6 +343,34 @@ static inline void process_message() {
     }
 }
 
+/*ISIR*/
+static inline void estimate_direction(){
+	uint8_t pb = PORTB;
+
+	switch(pb & 0x46){							  // see PB1, PB2, PB6
+		case 0x02:
+			rx_direction = SOUTH;
+			break;
+		case 0x04:
+			rx_direction = NORTH_EAST;
+			break;
+		case 0x06:
+			rx_direction = SOUTH_EAST;
+			break;
+		case 0x40:
+			rx_direction = NORTH_WEST;
+			break;
+		case 0x42:
+			rx_direction = SOUTH_WEST;
+			break;
+		case 0x44:
+			rx_direction = NORTH;
+			break;
+		default:
+			rx_direction = NONE;
+	}			
+}
+
 void delay(uint16_t ms) {
     while (ms > 0) {
         _delay_ms(1);
@@ -437,33 +468,6 @@ int16_t get_voltage() {
     return voltage;
 }
 
-/*ISIR*/
-void estimate_direction(){
-	uint8_t pb = PORTB;
-	switch(pb & 0x46){							  // see PB1, PB2, PB6
-		case 0x02:
-			rx_direction = SOUTH;
-			break;
-		case 0x04:
-			rx_direction = NORTH_EAST;
-			break;
-		case 0x06:
-			rx_direction = SOUTH_EAST;
-			break;
-		case 0x40:
-			rx_direction = NORTH_WEST;
-			break;
-		case 0x42:
-			rx_direction = SOUTH_WEST;
-			break;
-		case 0x44:
-			rx_direction = NORTH;
-			break;
-		default:
-			rx_direction = NONE;
-	}			
-}
-
 direction get_direction(){ return rx_direction;}
 
 uint8_t estimate_distance(const distance_measurement_t *dist) {
@@ -558,6 +562,34 @@ static inline void process_message() {
 
 EMPTY_INTERRUPT(TIMER0_COMPA_vect)
 
+/*ISIR*/
+static inline void estimate_direction(){
+	uint8_t pb = PORTB;
+
+	switch(pb & 0x46){							  // see PB1, PB2, PB6
+		case 0x02:
+			rx_direction = SOUTH;
+			break;
+		case 0x04:
+			rx_direction = NORTH_EAST;
+			break;
+		case 0x06:
+			rx_direction = SOUTH_EAST;
+			break;
+		case 0x40:
+			rx_direction = NORTH_WEST;
+			break;
+		case 0x42:
+			rx_direction = SOUTH_WEST;
+			break;
+		case 0x44:
+			rx_direction = NORTH;
+			break;
+		default:
+			rx_direction = NONE;
+	}			
+}
+
 #endif
 
 void set_color(uint8_t rgb) {
@@ -610,8 +642,7 @@ ISR(TIMER1_COMPA_vect) {
  */
 ISR(ANALOG_COMP_vect) {
     uint16_t timer = TCNT1;
-	
-	/*ISIR*/
+    /*ISIR*/
 	estimate_direction();
 
     rx_busy = 1;
