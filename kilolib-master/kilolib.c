@@ -20,7 +20,7 @@
 #define EEPROM_RIGHT_ROTATE   (uint8_t*)0x09
 #define EEPROM_LEFT_STRAIGHT  (uint8_t*)0x0C
 #define EEPROM_RIGHT_STRAIGHT (uint8_t*)0x14
-#define TX_MASK_MAX   ((1<<0)|(1<<1)|(1<<2)|(1<<6)|(1<<7))
+//#define TX_MASK_MAX   ((1<<0)|(1<<1)|(1<<2)|(1<<6)|(1<<7))
 #define TX_MASK_MIN   ((1<<0))
 
 /* Number of clock cycles per bit. */
@@ -30,7 +30,7 @@
 
 typedef void (*AddressPointer_t)(void) __attribute__ ((noreturn));
 
-void message_rx_dummy(message_t *m, distance_measurement_t *d) { }
+void message_rx_dummy(message_t *m, distance_measurement_t *d, direction *dir) { }
 message_t *message_tx_dummy() { return NULL; }
 void message_tx_success_dummy() {}
 
@@ -76,7 +76,9 @@ static volatile enum {
 
 void kilo_init() {
     cli();
-
+    /*ISIR*/
+  //  PCICR |= _BV(PCIE1);
+  //	PCMSK1 |= _BV(PCINT13);
     ports_off();
     ports_on();
     tx_timer_setup();
@@ -96,13 +98,13 @@ void kilo_init() {
     rx_byteindex = 0;
     rx_bytevalue = 0;
 #ifndef BOOTLOADER
-    tx_mask = eeprom_read_byte(EEPROM_TXMASK);
-    if (tx_mask & ~TX_MASK_MAX)
+  //  tx_mask = eeprom_read_byte(EEPROM_TXMASK);
+  //  if (tx_mask & ~TX_MASK_MAX)
         tx_mask = TX_MASK_MIN;
     tx_clock = 0;
     tx_increment = 255;
     kilo_ticks = 0;
-    kilo_state = IDLE;
+    kilo_state = SETUP;
     kilo_tx_period = 3906;
     kilo_uid = eeprom_read_byte(EEPROM_UID) | eeprom_read_byte(EEPROM_UID+1)<<8;
     kilo_turn_left = eeprom_read_byte(EEPROM_LEFT_ROTATE);
@@ -248,7 +250,7 @@ static inline void process_message() {
     AddressPointer_t reset = (AddressPointer_t)0x0000, bootload = (AddressPointer_t)0x7000;
     calibmsg_t *calibmsg = (calibmsg_t*)&rx_msg.data;
     if (rx_msg.type < BOOT) {
-        kilo_message_rx(&rx_msg, &rx_dist);
+        kilo_message_rx(&rx_msg, &rx_dist, &rx_direction);
         return;
     }
     if (rx_msg.type != READUID && rx_msg.type != RUN && rx_msg.type != CALIB)
@@ -341,34 +343,6 @@ static inline void process_message() {
         default:
             break;
     }
-}
-
-/*ISIR*/
-static inline void estimate_direction(){
-	uint8_t pb = PORTB;
-
-	switch(pb & 0x46){							  // see PB1, PB2, PB6
-		case 0x02:
-			rx_direction = SOUTH;
-			break;
-		case 0x04:
-			rx_direction = NORTH_EAST;
-			break;
-		case 0x06:
-			rx_direction = SOUTH_EAST;
-			break;
-		case 0x40:
-			rx_direction = NORTH_WEST;
-			break;
-		case 0x42:
-			rx_direction = SOUTH_WEST;
-			break;
-		case 0x44:
-			rx_direction = NORTH;
-			break;
-		default:
-			rx_direction = NONE;
-	}			
 }
 
 void delay(uint16_t ms) {
@@ -557,43 +531,15 @@ ISR(TIMER0_COMPA_vect) {
 #else// BOOTLOADER
 
 static inline void process_message() {
-    kilo_message_rx(&rx_msg, &rx_dist);
+    kilo_message_rx(&rx_msg, &rx_dist, &rx_direction);
 }
 
 EMPTY_INTERRUPT(TIMER0_COMPA_vect)
 
-/*ISIR*/
-static inline void estimate_direction(){
-	uint8_t pb = PORTB;
-
-	switch(pb & 0x46){							  // see PB1, PB2, PB6
-		case 0x02:
-			rx_direction = SOUTH;
-			break;
-		case 0x04:
-			rx_direction = NORTH_EAST;
-			break;
-		case 0x06:
-			rx_direction = SOUTH_EAST;
-			break;
-		case 0x40:
-			rx_direction = NORTH_WEST;
-			break;
-		case 0x42:
-			rx_direction = SOUTH_WEST;
-			break;
-		case 0x44:
-			rx_direction = NORTH;
-			break;
-		default:
-			rx_direction = NONE;
-	}			
-}
-
 #endif
 
 void set_color(uint8_t rgb) {
-    if (rgb&(1<<0))
+    /*if (rgb&(1<<0))
         DDRD |= (1<<5);
     else
         DDRD &= ~(1<<5);
@@ -621,7 +567,29 @@ void set_color(uint8_t rgb) {
     if (rgb&(1<<5))
         DDRC |= (1<<4);
     else
-        DDRC &= ~(1<<4);
+        DDRC &= ~(1<<4);*/
+
+        if(rgb&(1<<0) ||rgb&(1<<1)){
+          DDRD |= 1;
+          PORTD |= 1;
+        }
+        else{
+          DDRD &= ~(1);
+        }
+        if(rgb&(1<<2) ||rgb&(1<<3)){
+          DDRD |= 1<<1;
+          PORTD |= 1<<1;
+        }
+        else{
+          DDRD &= ~(1<<1);
+        }
+        if(rgb&(1<<4) ||rgb&(1<<5)){
+          DDRD |= 1<<2;
+          PORTD |= 1<<2;
+        }
+        else{
+          DDRD &= ~(1<<2);
+        }
 }
 
 /**
@@ -636,19 +604,50 @@ ISR(TIMER1_COMPA_vect) {
     adc_trigger_high_gain();
 }
 
+/*ISIR*/
+static inline void estimate_direction(uint8_t pb){
+  switch(pb & 0x46){							  // see PB1, PB2, PB6
+		case 0x02:
+			rx_direction = SOUTH;
+			break;
+		case 0x04:
+			rx_direction = NORTH_EAST;
+			break;
+		case 0x06:
+			rx_direction = SOUTH_EAST;
+      set_color(RGB(1, 1, 1));
+			break;
+		case 0x40:
+			rx_direction = NORTH_WEST;
+			break;
+		case 0x42:
+			rx_direction = SOUTH_WEST;
+      set_color(RGB(0, 0, 1));
+			break;
+		case 0x44:
+			rx_direction = NORTH;
+      set_color(RGB(1, 0, 0));
+			break;
+		default:
+			rx_direction = NONE;
+	}
+}
+
 /**
  * Analog comparator trigger interrupt.
  * Triggerred for incoming IR pulses (i.e. individual bits).
  */
 ISR(ANALOG_COMP_vect) {
+    DDRB &= ~((1<<1)|(1<<2)|(1<<6));
     uint16_t timer = TCNT1;
-    /*ISIR*/
-	estimate_direction();
+    uint8_t pb = PINB;
 
     rx_busy = 1;
     /* adc_trigger_stop(); */
 
     if(rx_leadingbit) {       // Start bit received.
+        /*ISIR*/
+        estimate_direction(pb);
         rx_timer_on();
         rx_bytevalue = 0;
         rx_leadingbit = 0;
@@ -658,6 +657,7 @@ ISR(ANALOG_COMP_vect) {
             adc_trigger_low_gain();
         }
     } else {
+
         // Stray bit received
         if (timer <= rx_bitcycles/2 || timer >= rx_bitcycles*9+rx_bitcycles/2) {
             rx_timer_off();
@@ -689,11 +689,11 @@ ISR(ANALOG_COMP_vect) {
                 } else {
                     rawmsg[rx_byteindex] = rx_bytevalue;
                     rx_byteindex++;
+
                     if (rx_byteindex == sizeof(message_t)) {
                         rx_timer_off();
                         rx_leadingbyte = 1;
                         rx_busy = 0;
-
                         if (rx_msg.crc == message_crc(&rx_msg))
                             process_message();
                     }

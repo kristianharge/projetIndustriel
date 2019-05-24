@@ -55,9 +55,6 @@ typedef struct {
     int16_t high_gain; ///< High gain 10-bit signal-strength measurement.
 } distance_measurement_t;
 
-typedef void (*message_rx_t)(message_t *, distance_measurement_t *d);
-typedef message_t *(*message_tx_t)(void);
-typedef void (*message_tx_success_t)(void);
 /*ISIR*/
 typedef enum direction {
 	NORTH,
@@ -70,13 +67,17 @@ typedef enum direction {
 } direction;
 
 
+typedef void (*message_rx_t)(message_t *, distance_measurement_t *d, direction *);
+typedef message_t *(*message_tx_t)(void);
+typedef void (*message_tx_success_t)(void);
+
 /**
  * @brief Kilobot clock variable.
  *
  * This variable holds a 32-bit unsigned positive integer. This variable
  * is initialized to zero whenever the program run at the kilobot is
  * reset (or when the kilobot is first turned on). It is incremented
- * approximately 32 times per second, or once every 30ms. 
+ * approximately 32 times per second, or once every 30ms.
  *
  * @code
  *
@@ -230,7 +231,7 @@ extern message_rx_t kilo_message_rx;
  *         set_color(RGB(1,0,0));
  *         delay(100);
  *         set_color(RGB(0,0,0));
- *     
+ *
  *     }
  * }
  *
@@ -372,7 +373,7 @@ int16_t get_ambientlight();
  * be used to determine the others kilobots positions.
  *
  * @return direction enum.
- */ 
+ */
 
 direction get_direction();
 
@@ -417,7 +418,7 @@ int16_t get_temperature();
  *
  * When a motor transitions from being off (0% duty cycle) to being on
  * (> 10% duty cycle) it must first be turned on at full-speed for 15ms
- * to overcome the effects of static friction. 
+ * to overcome the effects of static friction.
  *
  * @see kilo_turn_left
  * @see kilo_turn_right
@@ -509,7 +510,7 @@ void set_color(uint8_t color);
  * configuring ports, setting up analog-to-digital converters,
  * registering system interrupts and the initializing the messaging
  * subsystem.
- * 
+ *
  * It is recommended that you call this function as early as possible
  * inside the `main` function of your program.
  */
@@ -551,6 +552,8 @@ void kilo_init();
  * @endcode
  */
 void kilo_start(void (*setup)(void), void (*loop)(void));
+
+volatile uint8_t flag;
 
 #ifdef __cplusplus /* If this is a C++ compiler, use C linkage */
 }
